@@ -2,7 +2,7 @@ class BlockchainService
   Error = Class.new(StandardError)
   BalanceLoadError = Class.new(StandardError)
 
-  attr_reader :blockchain, :currencies, :adapter
+  attr_reader :blockchain, :currencies, :adapter, :latest_block
 
   def initialize(blockchian)
     @blockchain = blockchian
@@ -12,10 +12,8 @@ class BlockchainService
                        currencies: @currencies.map(&:to_blockchain_api_settings))
   end
 
-  def latest_block_number
-    Rails.cache.fetch("latest_#{@blockchain.key.underscore}_block_number", expires_in: 5.seconds) do
-      @adapter.latest_block_number
-    end
+  def fetch_latest_block
+    @latest_block = @adapter.latest_block_number
   end
 
   def load_balance!(address, currency_id)
@@ -42,7 +40,7 @@ class BlockchainService
     ActiveRecord::Base.transaction do
       accepted_deposits = deposits.map(&method(:update_or_create_deposit)).compact
       withdrawals.each(&method(:update_withdrawal))
-      update_height(block_number, adapter.latest_block_number)
+      update_height(block_number, @latest_block)
     end
     accepted_deposits.each(&:collect!)
     block
